@@ -6,6 +6,8 @@ Built from scratch as a personal productivity tool and AI systems exercise.
 
 **Powered by a multi-agent fallback chain:** Gemini 2.5 Pro → Gemini 2.5 Flash → OpenAI Codex → Claude → Ollama (local). Six specialized AI agents, each with its own role and system prompt. If any model fails — quota, timeout, auth error — the next one takes over automatically, no code changes needed.
 
+**Personalized machine learning built in:** the system continuously learns from your actual behavior — how long tasks really take per subject, how often you defer things, how accurately you estimated difficulty. Unlike generic AI assistants, every suggestion gets more accurate the more you use it. It doesn't give the same answer to everyone; it gives the answer that fits *you*.
+
 ---
 
 ## Full conversation example
