@@ -1,0 +1,26 @@
+# Secrets
+.env
+
+# Runtime data (personal tasks, calendar tokens, chat id)
+data/tasks.json
+data/task-history.json
+data/task-learning.json
+data/user_config.json
+
+# Google OAuth credentials
+credentials.json
+token.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# IDE / tools
+.claude/
+download.html
+
+# Logs
+*.log
+nohup.out

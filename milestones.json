@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "milestones": [
+    {
+      "id": "hito_1",
+      "title": "Fundación técnica",
+      "status": "done",
+      "steps": [
+        "Crear estructura de carpetas del proyecto (bot.py, core/, handlers/, storage/, integrations/, config/, data/)",
+        "Implementar config/models.yaml con un proveedor inicial (Ollama local)",
+        "Implementar core/ai_client.py con soporte openai_compatible y anthropic",
+        "Script de prueba que hace una llamada real al LLM por rol"
+      ],
+      "realWorldTest": {
+        "command": "python scripts/test_ai_client.py",
+        "botMessage": null,
+        "description": "El script responde con el output del modelo. Cambiás el modelo en el YAML sin tocar código y el test sigue funcionando igual."
+      }
+    },
+    {
+      "id": "hito_2",
+      "title": "Captura e interpretación sin Telegram",
+      "status": "done",
+      "steps": [
+        "Implementar storage/tasks.py (CRUD sobre tasks.json)",
+        "Implementar storage/history.py (append de eventos en task-history.json)",
+        "Implementar core/interpreter.py (llama ai_client con rol interpreter, parsea JSON de respuesta)",
+        "Script de prueba que recibe texto crudo y escribe en los JSON"
+      ],
+      "realWorldTest": {
+        "command": "python scripts/test_capture.py \"hacer ejercicios del taller de discretas\"",
+        "botMessage": null,
+        "description": "Abrís data/tasks.json y ves el objeto completo con domain: university, course: matematicas_discretas_ii, workType: problem_solving, clarity: high. Abrís data/task-history.json y ves el evento task_created con timestamp."
+      }
+    },
+    {
+      "id": "hito_3",
+      "title": "Bot de Telegram operativo (captura básica)",
+      "status": "done",
+      "steps": [
+        "Registrar el bot en Telegram y configurar el token en .env",
+        "Implementar bot.py con polling básico",
+        "Implementar handlers/capture.py que conecta mensaje → intérprete → storage → respuesta",
+        "El bot responde con confirmación natural de lo que entendió"
+      ],
+      "realWorldTest": {
+        "command": null,
+        "botMessage": "Anotado. Parece ser los ejercicios del taller de Discretas. ¿Lo agendamos o todavía no está listo para eso?",
+        "userInput": "hacer ejercicios del taller de discretas",
+        "description": "Le escribís al bot desde el teléfono, te responde confirmando lo que entendió y preguntando cómo seguir. La tarea aparece en tasks.json."
+      }
+    },
+    {
+      "id": "hito_4",
+      "title": "Estimación integrada al flujo de captura",
+      "status": "done",
+      "steps": [
+        "Implementar core/estimator.py (llama ai_client con rol estimator, aplica multiplicadores de task-learning.json)",
+        "Conectar estimador al flujo: captura → intérprete → estimador → respuesta",
+        "El bot incluye el rango estimado y el nivel de confianza en su respuesta"
+      ],
+      "realWorldTest": {
+        "command": null,
+        "botMessage": "Son los ejercicios del taller de Discretas. Calculo entre 75 y 120 minutos, aunque con esa materia a veces se extiende un poco. ¿Lo agendamos?",
+        "userInput": "hacer ejercicios del taller de discretas",
+        "description": "La respuesta del bot ya incluye estimación con rango. Con más historial acumulado, los números empiezan a ajustarse a tu realidad."
+      }
+    },
+    {
+      "id": "hito_5",
+      "title": "Lectura de Google Calendar y evaluación de capacidad",
+      "status": "done",
+      "steps": [
+        "Configurar OAuth2 con Google Calendar API y guardar credenciales",
+        "Implementar integrations/gcal.py (autenticación + lectura de eventos)",
+        "Implementar core/capacity.py (llama ai_client con rol evaluator, recibe snapshot del calendario, devuelve sugerencias de bloques con calidad y justificación)",
+        "Conectar al flujo: después de estimar, consulta el calendario y sugiere horarios reales"
+      ],
+      "realWorldTest": {
+        "command": null,
+        "botMessage": "Calculo unos 75–120 minutos. Mirando tu semana, veo dos momentos que me parecen buenos: el sábado 26 a las 2pm tenés un bloque de 3 horas libre, ideal para algo que pide foco. El domingo 27 a las 9am también está despejado. ¿Alguna de las dos te sirve?",
+        "userInput": "hacer ejercicios del taller de discretas",
+        "description": "Las opciones que da el bot corresponden a huecos reales de tu Google Calendar. No inventa horarios ni ignora tus clases."
+      }
+    },
+    {
+      "id": "hito_6",
+      "title": "Agendado completo en Google Calendar",
+      "status": "done",
+      "steps": [
+        "Extender integrations/gcal.py con creación de eventos",
+        "Implementar core/scheduler.py (toma bloque confirmado, crea evento en Calendar, retorna eventId)",
+        "Implementar handlers/schedule.py (maneja la conversación de elección y confirmación)",
+        "Actualizar tasks.json con status: scheduled y los datos del evento creado"
+      ],
+      "realWorldTest": {
+        "command": null,
+        "botMessage": "Perfecto. Quedó agendado el sábado 26 a las 2pm: 'Ejercicios del taller de Discretas'. Te aviso cuando se acerque.",
+        "userInput": "la primera",
+        "description": "Abrís Google Calendar desde el teléfono y el evento está ahí. tasks.json muestra status: scheduled con el eventId de Google."
+      }
+    },
+    {
+      "id": "hito_7",
+      "title": "Cierre de tareas y primer ciclo de aprendizaje",
+      "status": "done",
+      "steps": [
+        "Implementar handlers/review.py (comandos /done, /cancel, /defer)",
+        "Al completar sin duración, el bot pregunta cuánto tardó de forma breve",
+        "Implementar storage/learning.py con el Motor de Aprendizaje (recalcula multiplicadores con promedio ponderado)",
+        "Actualizar tasks.json y task-history.json con el cierre y la duración real"
+      ],
+      "realWorldTest": {
+        "command": null,
+        "botMessage": "Tomaste 30 minutos más de lo que calculé. Lo anoto para la próxima, Discretas suele expandirse.",
+        "userInput": "listo, tardé 150 minutos",
+        "description": "Abrís data/task-learning.json y el multiplicador de matematicas_discretas_ii subió. La próxima estimación para esa materia va a ser más realista."
+      }
+    },
+    {
+      "id": "hito_8",
+      "title": "Proactividad y resúmenes automáticos",
+      "status": "done",
+      "steps": [
+        "Integrar APScheduler en bot.py",
+        "Job diario: detectar tareas sin avanzar hace más de N días y enviar recordatorio",
+        "Job semanal: generar y enviar resumen de completadas, movidas y precisión de estimaciones",
+        "Responder a consultas manuales: 'qué tengo hoy' / 'qué tengo esta semana'"
+      ],
+      "realWorldTest": {
+        "command": null,
+        "botMessage": "Buen lunes. Esta semana tenés 3 tareas sin agendar todavía. La que más urge es el taller de Discretas, tiene fecha el jueves.",
+        "userInput": null,
+        "description": "Sin escribirle nada al bot, el lunes a las 9am te llega ese mensaje solo. El viernes llega el resumen semanal automático."
+      }
+    },
+    {
+      "id": "hito_9",
+      "title": "Flujo conversacional completo y robusto",
+      "status": "in_progress",
+      "steps": [
+        "Implementar manejo de estados conversacionales por usuario (etapa actual en memoria)",
+        "Manejar interrupciones: nueva captura en medio de un flujo de agendado",
+        "Manejar respuestas ambiguas: 'ese no', 'más tarde', 'ninguna', 'no sé'",
+        "Aclaración real cuando la claridad es baja: el bot pregunta, espera, retoma",
+        "Reagendado y modificación de tareas desde Telegram sin abrir Calendar"
+      ],
+      "realWorldTest": {
+        "command": null,
+        "botMessage": "Entendido, cambiamos el bloque. ¿Preferís buscarte otro momento para esta semana o lo pasamos a la siguiente?",
+        "userInput": "ese horario no me sirve",
+        "description": "Flujo completo sin fricción: capturás algo ambiguo, el bot hace una sola pregunta, estima, muestra opciones, confirmás, se agenda. Si en el medio mandás otra cosa, la registra y retoma. Todo desde el teléfono."
+      }
+    }
+  ]
+}

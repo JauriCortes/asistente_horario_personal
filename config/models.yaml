@@ -1,0 +1,187 @@
+providers:
+  claude_cli:
+    type: cli
+    command: [claude, -p]
+    model_flag: --model
+    input: stdin
+    timeout: 120
+
+  gemini_cli:
+    type: cli
+    command: [gemini, --output-format, text]
+    model_flag: -m
+    prompt_flag: --prompt
+    input: last_arg
+    timeout: 60
+
+  codex_cli:
+    type: cli
+    command: [codex, exec, --skip-git-repo-check]
+    model_flag: -m
+    input: last_arg
+    timeout: 120
+
+  # Ollama local — sin internet, sin costo, pero usa RAM.
+  # Con 16GB de RAM disponible, el límite seguro es ~5GB por modelo
+  # (el sistema operativo + otros procesos ocupan ~4-6GB).
+  # Modelos disponibles y su uso de RAM:
+  #   qwen2.5:7b       → 4.7 GB  ✓ seguro, mejor local para JSON estructurado
+  #   qwen2.5-coder:7b → 4.7 GB  ✓ seguro, orientado a código
+  #   deepseek-r1:1.5b → 1.1 GB  ✓ muy liviano, razonamiento básico
+  #   qwen3.5:9b       → 6.6 GB  ⚠ arriesgado con 16GB
+  #   gemma4:e2b       → 7.2 GB  ✗ demasiado grande
+  #   gemma4:e4b       → 9.6 GB  ✗ demasiado grande
+  local_ollama:
+    type: openai_compatible
+    api_base: http://localhost:11434/v1
+    api_key: ollama
+
+# ══════════════════════════════════════════════════════════════
+# EQUIVALENCIAS ENTRE MODELOS
+# ══════════════════════════════════════════════════════════════
+#
+#  TIER RÁPIDO / TAREAS SIMPLES (JSON estructurado, confirmaciones):
+#    gemini-2.5-flash  ≈  gpt-5.4-mini  ≈  claude haiku
+#    → gratis, rápidos, buenos siguiendo schemas JSON
+#
+#  TIER MEDIO / TAREAS COTIDIANAS (conversación, estimaciones complejas):
+#    gemini-2.5-flash  ≈  gpt-5.4
+#    → gratis, buena calidad general, tono natural en español
+#
+#  TIER ALTO / RAZONAMIENTO COMPLEJO (evaluación de agenda, patrones):
+#    gemini-2.5-pro  ≈  gpt-5.5  ≈  claude sonnet
+#    → los tres son frontier/alta capacidad; gpt-5.5 es GRATIS con ChatGPT
+#    → claude sonnet es el único PAGO de este tier
+#
+#  LOCAL (sin internet, último recurso):
+#    qwen2.5:7b      → bueno para JSON, seguro en 16GB RAM
+#    deepseek-r1:1.5b → muy liviano, solo para tareas simples
+#
+# ══════════════════════════════════════════════════════════════
+# PRIORIDAD GENERAL
+# ══════════════════════════════════════════════════════════════
+#
+#  1. Gemini  → gratis, primero (1500 req/día Flash, cuota diaria Pro)
+#  2. Codex   → gratis con ChatGPT, modelos frontier disponibles
+#  3. Claude  → PAGO, solo si todo lo gratuito falló
+#  4. Ollama  → local, sin internet, último recurso por RAM
+#
+# ══════════════════════════════════════════════════════════════
+# ROLES Y SU LÓGICA DE FALLBACK
+# ══════════════════════════════════════════════════════════════
+
+roles:
+
+  # ── interpreter ───────────────────────────────────────────
+  # Tarea: texto libre → JSON estructurado con campos de tarea.
+  # Requiere: seguir schema JSON estricto, velocidad, bajo costo.
+  #
+  # gemini-2.5-flash: gratis, rápido, excelente con schemas JSON.
+  # gpt-5.4-mini:     gratis, tier rápido de Codex, equivalente a Flash.
+  # claude haiku:     pago, mismo perfil rápido/estructurado, respaldo confiable.
+  # qwen2.5:7b:       local 4.7GB, el mejor Ollama para JSON dentro del límite de RAM.
+  interpreter:
+    temperature: 0.1
+    max_tokens: 1024
+    fallback:
+      - provider: gemini_cli
+        model: gemini-2.5-flash
+      - provider: codex_cli
+        model: gpt-5.4-mini
+      - provider: claude_cli
+        model: haiku
+      - provider: local_ollama
+        model: qwen2.5:7b
+
+  # ── estimator ─────────────────────────────────────────────
+  # Tarea: objeto de tarea → rango de duración (lowMin/highMin/confidence) en JSON.
+  # Requiere: schema JSON simple, cálculo numérico básico, velocidad.
+  # Mismo perfil que interpreter: tier rápido primero, pago de respaldo.
+  #
+  # gemini-2.5-flash: gratis, rápido, confiable para JSON numérico.
+  # gpt-5.4-mini:     gratis, pequeño y veloz, equivalente a Flash.
+  # claude haiku:     pago, confiable para estimaciones estructuradas.
+  # qwen2.5:7b:       local 4.7GB, suficiente para cálculos simples.
+  estimator:
+    temperature: 0.1
+    max_tokens: 512
+    fallback:
+      - provider: gemini_cli
+        model: gemini-2.5-flash
+      - provider: codex_cli
+        model: gpt-5.4-mini
+      - provider: claude_cli
+        model: haiku
+      - provider: local_ollama
+        model: qwen2.5:7b
+
+  # ── evaluator ─────────────────────────────────────────────
+  # Tarea: snapshot del calendario + tarea → bloques horarios sugeridos con calidad.
+  # Requiere: razonamiento complejo, contexto largo, matices de energía/fragmentación.
+  # Este es el rol más exigente del sistema — necesita los mejores modelos.
+  #
+  # gemini-2.5-pro:  gratis, mejor razonamiento disponible en Gemini (cuota limitada).
+  # gpt-5.5:         gratis con ChatGPT, modelo frontier equivalente a claude sonnet.
+  #                  Colocar antes de Flash porque su capacidad es superior.
+  # gemini-2.5-flash: gratis, fallback si Pro y gpt-5.5 se agotan.
+  # claude sonnet:   pago, mejor modelo para razonamiento contextual complejo.
+  # qwen2.5:7b:      local 4.7GB, análisis de agenda básico sin la profundidad de arriba.
+  evaluator:
+    temperature: 0.2
+    max_tokens: 2048
+    fallback:
+      - provider: gemini_cli
+        model: gemini-2.5-pro
+      - provider: codex_cli
+        model: gpt-5.4
+      - provider: gemini_cli
+        model: gemini-2.5-flash
+      - provider: claude_cli
+        model: sonnet
+      - provider: local_ollama
+        model: qwen2.5:7b
+
+  # ── conversador ───────────────────────────────────────────
+  # Tarea: gestionar el diálogo en Telegram, respuestas naturales en español.
+  # Requiere: tono conversacional, brevedad, no robótico, sin lenguaje de sistema.
+  #
+  # gemini-2.5-flash: gratis, sorprendentemente natural en español informal.
+  # gpt-5.4:          gratis, tier medio de Codex, mejor tono que mini para conversación.
+  #                   Se prefiere sobre mini aquí porque la naturalidad importa más que la velocidad.
+  # claude haiku:     pago, el mejor tono conversacional/informal de Claude.
+  # qwen2.5:7b:       local 4.7GB, español aceptable pero menos natural que los de arriba.
+  conversador:
+    temperature: 0.4
+    max_tokens: 512
+    fallback:
+      - provider: gemini_cli
+        model: gemini-2.5-flash
+      - provider: codex_cli
+        model: gpt-5.4
+      - provider: claude_cli
+        model: haiku
+      - provider: local_ollama
+        model: qwen2.5:7b
+
+  # ── learning ──────────────────────────────────────────────
+  # Tarea: tarea cerrada + learning actual → JSON con multiplicadores actualizados.
+  # Requiere: schema JSON, cálculo numérico de multiplicadores, velocidad.
+  # Corre poco frecuente (solo al cerrar tareas), prioriza ligereza.
+  #
+  # gemini-2.5-flash: gratis, rápido, excelente para JSON numérico.
+  # gpt-5.4-mini:     gratis, suficiente para cálculos de multiplicadores.
+  # claude haiku:     pago, confiable para cálculos estructurados simples.
+  # deepseek-r1:1.5b: local 1.1GB — el más liviano disponible, razonamiento básico
+  #                   suficiente para actualizar un multiplicador con una división.
+  learning:
+    temperature: 0.1
+    max_tokens: 1024
+    fallback:
+      - provider: gemini_cli
+        model: gemini-2.5-flash
+      - provider: codex_cli
+        model: gpt-5.4-mini
+      - provider: claude_cli
+        model: haiku
+      - provider: local_ollama
+        model: deepseek-r1:1.5b
